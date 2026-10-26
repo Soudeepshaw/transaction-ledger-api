@@ -4,11 +4,17 @@ Base URL: `http://127.0.0.1:8000/api/v1` (interactive docs at `/docs`).
 All bodies are JSON. Amounts are strings or numbers with at most 2 decimal places and are returned as strings (e.g. `"100.00"`).
 
 Errors always look like `{"error": "<code>", "message": "<text>"}`.
-Malformed input (missing fields, wrong types, bad `type` filter, more than 2 decimals) is rejected with 422 by request validation and uses FastAPI's standard `detail` format instead.
+Malformed input (missing fields, wrong types, bad `type` filter, more than 2 decimals, invalid JSON) is rejected with 422 `validation_error` and adds a `details` list naming each bad field:
+```json
+{"error":"validation_error","message":"Invalid request data.","details":[{"field":"name","message":"Field required"}]}
+```
+Unknown routes return 404 `not_found` and wrong methods (e.g. DELETE on a transaction) return 405 `method_not_allowed`, in the same shape. Transactions and accounts cannot be edited or deleted.
 
 | Status | `error` code | When |
 |---|---|---|
 | 404 | `account_not_found` | account id doesn't exist |
+| 404 | `not_found` | unknown route |
+| 405 | `method_not_allowed` | e.g. PUT/DELETE on a transaction |
 | 409 | `reference_conflict` | `reference_id` already used on this account with a different type/amount |
 | 422 | `insufficient_balance` | debit or transfer larger than the balance |
 | 422 | `validation_error` | e.g. transfer to the same account |

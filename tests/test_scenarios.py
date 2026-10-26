@@ -420,3 +420,101 @@ def test_concurrent_debits_never_overdraw(file_db):
     assert len(ok) <= 3  # 100 // 30
     assert final == Decimal("100") - Decimal("30") * n_debits  # ledger and balance agree
     assert n_debits == len(ok)
+
+
+# ---- section 5: data integrity -------------------------------------------
+
+def test_balance_equals_result_of_all_valid_transactions():
+    """The example from the brief: 0 +100 +50 -30 -20 = 100."""
+    aid = acct()
+    for type_, amt, ref in [("credit", 100, "1"), ("credit", 50, "2"), ("debit", 30, "3"), ("debit", 20, "4")]:
+        assert txn(aid, type_, amt, ref).status_code == 201
+    assert bal(aid) == "100.00"
+
+
+def test_balance_always_equals_sum_of_ledger():
+    aid = acct()
+    txn(aid, "credit", 100, "a")
+    txn(aid, "debit", 500, "too-big")  # rejected, must not count
+    txn(aid, "debit", 40, "b")
+    txn(aid, "credit", 5, "a")  # duplicate, must not count
+    rows = client.get(f"{API}/accounts/{aid}/transactions").json()["data"]
+    ledger = sum(Decimal(t["amount"]) * (1 if t["type"] == "credit" else -1) for t in rows)
+    assert Decimal(bal(aid)) == ledger == Decimal("60")
+
+
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
+def test_transactions_cannot_be_edited_or_deleted(method):
+    aid = acct()
+    t = txn(aid, "credit", 10, "r").json()
+    for url in (f"{API}/accounts/{aid}/transactions/{t['id']}", f"{API}/accounts/{aid}/transactions"):
+        r = getattr(client, method)(url, json={"amount": "999"}) if method != "delete" else client.delete(url)
+        assert r.status_code in (404, 405)
+    assert bal(aid) == "10.00"
+    stored = client.get(f"{API}/accounts/{aid}/transactions").json()["data"][0]
+    assert stored["amount"] == "10.00" and stored["id"] == t["id"]
+
+
+def test_accounts_cannot_be_overwritten_or_deleted_via_api():
+    aid = acct()
+    assert client.put(f"{API}/accounts/{aid}", json={"name": "x", "balance": 1}).status_code == 405
+    assert client.delete(f"{API}/accounts/{aid}").status_code == 405
+    assert client.patch(f"{API}/accounts/{aid}/balance", json={"balance": 1}).status_code == 405
+
+
+# ---- section 8: consistent errors ----------------------------------------
+
+def _is_standard_error(resp, code):
+    body = resp.json()
+    return {"error", "message"} <= set(body) and body["error"] == code and isinstance(body["message"], str)
+
+
+def test_every_error_kind_uses_the_same_body_shape():
+    aid = acct()
+    txn(aid, "credit", 10, "r")
+    cases = [
+        (client.get(f"{API}/accounts/nope"), 404, "account_not_found"),
+        (client.get(f"{API}/nothing-here"), 404, "not_found"),
+        (client.delete(f"{API}/accounts/{aid}"), 405, "method_not_allowed"),
+        (txn(aid, "debit", 999, "big"), 422, "insufficient_balance"),
+        (txn(aid, "credit", 99, "r"), 409, "reference_conflict"),
+        (txn(aid, "credit", -1, "neg"), 422, "validation_error"),
+        (txn(aid, "weird", 1, "t"), 422, "validation_error"),
+        (client.post(f"{API}/accounts", json={}), 422, "validation_error"),
+        (client.post(f"{API}/accounts", content="not json", headers={"Content-Type": "application/json"}), 422, "validation_error"),
+        (client.get(f"{API}/accounts/{aid}/transactions?limit=0"), 422, "validation_error"),
+    ]
+    for resp, status, code in cases:
+        assert resp.status_code == status, resp.text
+        assert _is_standard_error(resp, code), resp.text
+
+
+def test_validation_error_names_the_bad_field():
+    body = client.post(f"{API}/accounts", json={}).json()
+    assert body["details"][0]["field"] == "name"
+
+
+# ---- section 10: database constraints ------------------------------------
+
+def _raw_insert(obj):
+    from sqlalchemy.exc import IntegrityError
+    db = TestSession()
+    try:
+        db.add(obj)
+        with pytest.raises(IntegrityError):
+            db.commit()
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_db_rejects_negative_balance():
+    _raw_insert(models.Account(name="x", balance=Decimal("-1")))
+
+
+def test_db_rejects_zero_amount_and_bad_type_and_duplicate_ref():
+    aid = acct()
+    _raw_insert(models.Transaction(account_id=aid, type="credit", amount=Decimal("0"), reference_id="z"))
+    _raw_insert(models.Transaction(account_id=aid, type="refund", amount=Decimal("1"), reference_id="t"))
+    txn(aid, "credit", 1, "dup")
+    _raw_insert(models.Transaction(account_id=aid, type="credit", amount=Decimal("1"), reference_id="dup"))

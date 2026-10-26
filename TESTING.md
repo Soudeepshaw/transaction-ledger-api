@@ -1,7 +1,7 @@
 # Testing
 
 ```bash
-pytest -q          # 61 tests, ~3s, in-memory SQLite (concurrency tests use a temp file DB)
+pytest -q          # 71 tests, ~5s, in-memory SQLite (concurrency tests use a temp file DB)
 ```
 
 Tests live in `tests/test_api.py` (the main flows) and `tests/test_scenarios.py` (edge cases, grouped by PRD section).
@@ -34,6 +34,12 @@ Tests live in `tests/test_api.py` (the main flows) and `tests/test_scenarios.py`
 | FR-4 | page past the end / empty account | empty `data`, not an error; `total_pages` 0 for empty |
 | FR-4 | `page=0`, `page=-1`, `limit=0`, `limit=201`, `type=refund`, `page=abc` | 422 |
 | FR-4 | unknown account; another account's transactions | 404; never leaks |
+| Integrity | no PUT / PATCH / DELETE on transactions or accounts | 405, nothing changed |
+| Integrity | brief's example 0 +100 +50 -30 -20 | 100.00 |
+| Integrity | balance vs sum of the ledger after rejected and duplicate requests | equal |
+| Errors | 404 (account, route), 405, 409, 422 (domain and validation), malformed JSON | all use `{error, message}` |
+| Errors | validation error names the bad field | `details[0].field == "name"` |
+| DB constraints | negative balance, zero amount, bad type, duplicate reference inserted directly | rejected by the database itself |
 | Transfer | success, exact balance, unknown account, same account | 201 / 201 / 404 / 422 |
 | Transfer | insufficient funds | 422, both balances and both ledgers untouched |
 | Transfer | retry after the source was drained | 200 with the original result, not 422 |

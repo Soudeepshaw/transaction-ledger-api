@@ -1,4 +1,4 @@
-﻿"""SQLAlchemy models.
+"""SQLAlchemy models.
 
 Money stored as Numeric(18,2) — fixed-point, never float — so balance
 arithmetic stays exact across credit/debit cycles.
@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -23,6 +23,7 @@ def utcnow() -> datetime:
 
 class Account(Base):
     __tablename__ = "accounts"
+    __table_args__ = (CheckConstraint("balance >= 0", name="ck_account_balance_non_negative"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -36,6 +37,8 @@ class Transaction(Base):
     __tablename__ = "transactions"
     __table_args__ = (
         UniqueConstraint("account_id", "reference_id", name="uq_account_reference"),
+        CheckConstraint("amount > 0", name="ck_txn_amount_positive"),
+        CheckConstraint("type IN ('credit', 'debit')", name="ck_txn_type"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

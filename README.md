@@ -31,7 +31,7 @@ Open http://127.0.0.1:8000/docs for the interactive API.
 pytest -q
 ```
 
-61 tests. What each one covers, and the bug they found, is in [TESTING.md](TESTING.md).
+71 tests. What each one covers, and the bug they found, is in [TESTING.md](TESTING.md).
 
 ## API
 
