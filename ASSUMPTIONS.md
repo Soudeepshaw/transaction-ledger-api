@@ -10,7 +10,7 @@
 
 5. **No authentication.** This is a take-home, not a production system. In prod I'd use API keys per client validated in middleware, or JWTs for user-facing flows.
 
-6. **Database: the brief allows any, so SQLite.** SQLite for local dev.** It ignores `SELECT ... FOR UPDATE`, which let concurrent debits overdraw until I made it take the write lock up front (`BEGIN IMMEDIATE`); a threaded test covers that. On Postgres the row lock is used instead, but I haven't run that path. Swap to Postgres by setting `DATABASE_URL`.
+6. **Database: the brief allows any, so I used SQLite.** It needs no setup for the reviewer. It ignores `SELECT ... FOR UPDATE`, which let concurrent debits overdraw until I made it take the write lock up front (`BEGIN IMMEDIATE`); a threaded test covers that. On Postgres the row lock is used instead, but I haven't run that path. Swap to Postgres by setting `DATABASE_URL`.
 
 7. **Amounts limited to 2 decimal places.** The DB column is Numeric(18,2). Anything with more precision (like 10.005) would get silently rounded by the DB, which is not ok for money. The API validates this upfront and returns 422.
 
