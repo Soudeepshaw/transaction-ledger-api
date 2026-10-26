@@ -78,7 +78,11 @@ def list_transactions(
 # ── transfers ────────────────────────────────────────────────────────
 
 @router.post("/transfers", response_model=schemas.TransferOut, status_code=201)
-def create_transfer(body: schemas.TransferCreate, db: Session = Depends(get_db)):
+def create_transfer(
+    body: schemas.TransferCreate,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     if body.from_account_id == body.to_account_id:
         raise ValidationFailed("Cannot transfer to the same account.")
 
@@ -99,6 +103,7 @@ def create_transfer(body: schemas.TransferCreate, db: Session = Depends(get_db))
         credit_transaction=schemas.TransactionOut.model_validate(credit_txn),
     )
     if dup:
+        response.status_code = 200
         resp.debit_transaction.duplicate = True
         resp.credit_transaction.duplicate = True
     return resp

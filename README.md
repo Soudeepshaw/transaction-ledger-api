@@ -31,6 +31,8 @@ Open http://127.0.0.1:8000/docs for the interactive API.
 pytest -q
 ```
 
+61 tests. What each one covers, and the bug they found, is in [TESTING.md](TESTING.md).
+
 ## API
 
 Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.md). The requirements I worked from are in [PRD.md](PRD.md), and my assumptions in [ASSUMPTIONS.md](ASSUMPTIONS.md).
@@ -43,7 +45,7 @@ Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.m
 
 3. **422 for insufficient balance** — the request is valid JSON, just breaks a business rule. Some teams use 400 or 409, I don't think it matters much as long as you pick one.
 
-4. **SQLite for dev, Postgres for prod** — SQLite means the reviewer can run this with zero setup. Just set `DATABASE_URL` to switch. Debits and transfers lock the account row (`SELECT ... FOR UPDATE`) so concurrent requests can't both pass the balance check. SQLite ignores the lock, so I haven't been able to test that part here; see Known Limitations.
+4. **SQLite for dev, Postgres for prod** — SQLite means the reviewer can run this with zero setup. Just set `DATABASE_URL` to switch. Concurrent requests can't both pass the balance check: Postgres uses a row lock (`SELECT ... FOR UPDATE`), and SQLite takes its write lock at the start of each transaction (`BEGIN IMMEDIATE`). A threaded test caught this bug on SQLite before I added that, see [TESTING.md](TESTING.md).
 
 5. **UUID IDs** — not guessable, no info leakage about how many accounts exist, safe to generate without coordinating across services.
 
@@ -55,7 +57,8 @@ Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.m
 
 ## Known limitations
 
-- **Row locking is untested** — the lock is in the code but SQLite ignores `FOR UPDATE` and serialises writes, so my tests can't show the race being prevented. Needs a threaded test against Postgres.
+- **Postgres path is untested** — the concurrency tests run on SQLite only. The `FOR UPDATE` path hasn't been run against a real Postgres.
+- **SQLite serialises everything**, including reads, because of `BEGIN IMMEDIATE`. Fine for a take-home, not for real load.
 - **Timestamps come back without a timezone** — they're stored as UTC but SQLite drops the tzinfo, so `created_at` has no `Z`. Postgres keeps it.
 - **No auth** — in production I'd add API key or JWT middleware.
 - **Single currency** — no currency field. Would add it as a non-nullable column with a migration.

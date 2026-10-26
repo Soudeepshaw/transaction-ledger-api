@@ -82,8 +82,9 @@ Fields: `id`, `account_id`, `type` (credit|debit), `amount`, `description`, `ref
 ## 7. Deliverables
 
 - [x] Source code
-- [ ] README (setup, run, test, decisions, limitations, future work)
-- [ ] API documentation
+- [x] README (setup, run, test, decisions, limitations, future work)
+- [x] API documentation
+- [x] TESTING.md (scenario matrix and results)
 - [x] Assumptions (ASSUMPTIONS.md)
 - [ ] Confirm the list against page 5
 
