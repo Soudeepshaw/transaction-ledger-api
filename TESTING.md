@@ -18,8 +18,10 @@ bash scripts/curl_smoke.sh http://127.0.0.1:8000
 
 | | SQLite | Postgres 18.6 (Neon) |
 |---|---|---|
-| pytest | 339 / 339 | in progress at the time of this commit: 26 passed, 0 failed so far (run is slow over the network from India to US East) |
-| curl script | 139 / 139 | earlier version of the script: everything passed except requests hit by dropped connections from this machine (see below); final run pending |
+| pytest | 339 / 339 | 168 passed, 0 failed (see below) |
+| curl script | 139 / 139 | an earlier version of the script ran against Postgres: all checks passed except requests hit by dropped connections from this machine (see "Not covered") |
+
+Postgres pytest detail: the suite is slow against a remote database from here (a few tests a minute), so it was run in two parts. The first part got through 161 of 317 selected tests with 0 failures before it was interrupted. The second part ran the concurrency and failure tests (parallel credits, mixed credits and debits, identical and draining transfers, a dropped commit): the first 7 of 17 had passed with 0 failures when this was written. The remaining Postgres tests were not run, and the final curl script (139 checks) was not run against Postgres. Everything was run in full on SQLite.
 
 The Docker image and `compose.yaml` were written and the compose file validated (`docker compose config`), but the image has not been built or run here.
 
