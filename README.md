@@ -1,4 +1,4 @@
-﻿# Ledger API
+# Ledger API
 
 Take-home for Confluencr — a wallet/ledger service in FastAPI + SQLite.
 
@@ -31,6 +31,10 @@ Open http://127.0.0.1:8000/docs for the interactive API.
 pytest -q
 ```
 
+## API
+
+Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.md). The requirements I worked from are in [PRD.md](PRD.md), and my assumptions in [ASSUMPTIONS.md](ASSUMPTIONS.md).
+
 ## Design decisions
 
 1. **Idempotency via reference_id** — I went with Stripe's approach: duplicate POST returns 200 + the original transaction with a `duplicate: true` flag instead of 409. The client doesn't need special error handling, it just gets back what it expects. The DB unique constraint `(account_id, reference_id)` is the real guardrail; the SELECT before INSERT is just a fast path.
@@ -39,7 +43,7 @@ pytest -q
 
 3. **422 for insufficient balance** — the request is valid JSON, just breaks a business rule. Some teams use 400 or 409, I don't think it matters much as long as you pick one.
 
-4. **SQLite for dev, Postgres for prod** — SQLite means the reviewer can run this with zero setup. Just set `DATABASE_URL` to switch. I didn't implement `SELECT FOR UPDATE` (SQLite doesn't support it), but I know where it'd go — see Known Limitations below.
+4. **SQLite for dev, Postgres for prod** — SQLite means the reviewer can run this with zero setup. Just set `DATABASE_URL` to switch. Debits and transfers lock the account row (`SELECT ... FOR UPDATE`) so concurrent requests can't both pass the balance check. SQLite ignores the lock, so I haven't been able to test that part here; see Known Limitations.
 
 5. **UUID IDs** — not guessable, no info leakage about how many accounts exist, safe to generate without coordinating across services.
 
@@ -47,9 +51,12 @@ pytest -q
 
 7. **Offset pagination** — simple and good enough for this scope. I'd switch to cursor/keyset (`WHERE created_at < :cursor ORDER BY created_at DESC, id`) for production since offset gets slow on deep pages.
 
+8. **Reusing a `reference_id` with a different type or amount returns 409.** A replay of the same request is harmless (200), but the same reference with different values is almost certainly a client bug and shouldn't silently succeed.
+
 ## Known limitations
 
-- **No row locking** — concurrent debits can race: two requests both read balance=100, both pass the check, both debit 80, balance ends at 20 with 160 spent. Fix: `SELECT FOR UPDATE` on Postgres, or an atomic conditional update (`UPDATE ... SET balance = balance - :amt WHERE balance >= :amt` and check rowcount). SQLite serialises writes so this doesn't show up locally.
+- **Row locking is untested** — the lock is in the code but SQLite ignores `FOR UPDATE` and serialises writes, so my tests can't show the race being prevented. Needs a threaded test against Postgres.
+- **Timestamps come back without a timezone** — they're stored as UTC but SQLite drops the tzinfo, so `created_at` has no `Z`. Postgres keeps it.
 - **No auth** — in production I'd add API key or JWT middleware.
 - **Single currency** — no currency field. Would add it as a non-nullable column with a migration.
 - **No Alembic** — using `create_all()` for simplicity. Real project would use migrations.

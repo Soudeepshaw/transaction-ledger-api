@@ -1,6 +1,6 @@
-﻿from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -38,6 +38,7 @@ def get_balance(account_id: str, db: Session = Depends(get_db)):
 def create_transaction(
     account_id: str,
     body: schemas.TransactionCreate,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     _validate_decimal_places(body.amount)
@@ -49,6 +50,8 @@ def create_transaction(
         description=body.description or "",
         reference_id=body.reference_id,
     )
+    if dup:
+        response.status_code = 200  # replay: nothing new was created
     out = schemas.TransactionOut.model_validate(txn)
     out.duplicate = dup
     return out

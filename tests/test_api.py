@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -116,6 +116,8 @@ def test_duplicate_ref_returns_original_txn():
     r1 = _credit(aid, 50, "dup-ref")
     r2 = _credit(aid, 50, "dup-ref")
 
+    assert r1.status_code == 201
+    assert r2.status_code == 200
     assert r1.json()["id"] == r2.json()["id"]
     assert r2.json()["duplicate"] is True
 
