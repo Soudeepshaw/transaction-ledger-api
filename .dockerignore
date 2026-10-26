@@ -1,0 +1,21 @@
+# only requirements.txt and app/ are needed in the image
+.git
+.gitignore
+.dockerignore
+Dockerfile
+compose.yaml
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+venv
+.venv
+.env
+*.db
+tests
+scripts
+*.md
+.claude
+.vscode
+.idea
+requirements-dev.txt
+.env.example

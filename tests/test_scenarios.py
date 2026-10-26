@@ -1,4 +1,4 @@
-"""Edge-case and scenario tests, grouped by PRD section. See TESTING.md for the matrix."""
+"""Scenario tests, grouped by section of the brief. See TESTING.md for the matrix."""
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
@@ -7,34 +7,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app import crud, models
-from app.database import Base, configure_sqlite, get_db
+from app.database import Base, configure_sqlite
 from app.errors import InsufficientBalance
 from app.main import app
-
-engine = create_engine(
-    "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-)
-TestSession = sessionmaker(bind=engine)
-
-
-def override_get_db():
-    db = TestSession()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-@pytest.fixture(autouse=True)
-def fresh_db():
-    app.dependency_overrides[get_db] = override_get_db
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
+from tests.conftest import TestSession, run_parallel
 
 client = TestClient(app)
 API = "/api/v1"
@@ -371,39 +349,12 @@ def test_transfer_is_atomic_when_commit_fails(monkeypatch):
 
 # ---- concurrency ---------------------------------------------------------
 
-@pytest.fixture
-def file_db():
-    """Real file-backed SQLite with one connection per thread, unlike the in-memory test DB."""
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
-        eng = create_engine(
-            f"sqlite:///{d}/race.db", connect_args={"check_same_thread": False, "timeout": 30}
-        )
-        configure_sqlite(eng)
-        Base.metadata.create_all(eng)
-        yield sessionmaker(bind=eng)
-        eng.dispose()
-
-
-def _run_parallel(session_factory, fn, jobs, workers=10):
-    def wrap(job):
-        db = session_factory()
-        try:
-            return fn(db, job)
-        except Exception as exc:  # noqa: BLE001 - we want to count every outcome
-            return exc
-        finally:
-            db.close()
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(wrap, jobs))
-
-
 def test_concurrent_duplicate_reference_creates_one_transaction(file_db):
     db = file_db()
     aid = crud.create_account(db, "race").id
     db.close()
 
-    results = _run_parallel(
+    results = run_parallel(
         file_db,
         lambda s, _: crud.add_transaction(s, aid, "credit", Decimal("10"), "", "same-ref"),
         range(20),
@@ -423,7 +374,7 @@ def test_concurrent_debits_never_overdraw(file_db):
     crud.add_transaction(db, aid, "credit", Decimal("100"), "", "seed")
     db.close()
 
-    results = _run_parallel(
+    results = run_parallel(
         file_db,
         lambda s, i: crud.add_transaction(s, aid, "debit", Decimal("30"), "", f"d{i}"),
         range(10),

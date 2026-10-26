@@ -25,6 +25,11 @@ class ReferenceConflict(LedgerError):
     error_code = "reference_conflict"
 
 
+class BalanceLimitExceeded(LedgerError):
+    status_code = 422
+    error_code = "balance_limit_exceeded"
+
+
 class ValidationFailed(LedgerError):
     status_code = 422
     error_code = "validation_error"

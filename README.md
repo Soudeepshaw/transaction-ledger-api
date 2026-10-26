@@ -11,11 +11,15 @@ Take-home for Confluencr — a wallet/ledger service in FastAPI + SQLite.
 
 ## Setup
 
+Needs **Python 3.11 or newer** (SQLAlchemy 2.1 requires it).
+
 ```bash
 python -m venv venv
 venv\Scripts\activate    # or source venv/bin/activate on mac/linux
-pip install -r requirements.txt
+pip install -r requirements-dev.txt     # runtime + test tools; use requirements.txt for the API only
 ```
+
+All dependencies are pinned to the latest releases as of 26 Oct 2026 (FastAPI 0.162, SQLAlchemy 2.1, Pydantic 2.14, pytest 9, ...).
 
 ## Run
 
@@ -25,17 +29,45 @@ uvicorn app.main:app --reload
 
 Open http://127.0.0.1:8000/docs for the interactive API.
 
+## Run with Docker
+
+The image is a two-stage build on `python:3.15-slim`: dependencies are installed with [uv](https://docs.astral.sh/uv/) into a virtualenv, and the runtime stage holds only Python, that virtualenv and `app/`. It runs as a non-root user and has a `HEALTHCHECK` on `GET /health`.
+
+```bash
+# API + Postgres 18 (data kept in a named volume)
+docker compose up --build
+# -> http://127.0.0.1:8000/docs
+
+# or just the API on SQLite, with the database file kept in a volume
+docker build -t ledger-api .
+docker run -p 8000:8000 -v ledger-data:/data ledger-api
+```
+
+Podman runs the same files (`podman compose up --build`). Set `POSTGRES_PASSWORD` (environment or `.env`) to choose the database password; without it a local-only default is used.
+
+## Run on Postgres
+
+SQLite is the default, so nothing is needed to try it. To use Postgres, set `DATABASE_URL` (as an environment variable or in a `.env` file, see `.env.example`) before starting the server:
+
+```bash
+# any Postgres, local or hosted (Neon, Supabase, RDS...)
+export DATABASE_URL="postgresql://user:password@host:5432/dbname"      # PowerShell: $env:DATABASE_URL = "..."
+uvicorn app.main:app
+```
+
+The tables are created on startup. `postgres://` and plain `postgresql://` URLs are accepted; they're rewritten to use `psycopg2` (SQLAlchemy 2.1 would otherwise default to the newer `psycopg` driver, which isn't installed). To run the test suite against Postgres, point `TEST_DATABASE_URL` at a throwaway database (the tests delete all rows in it) and run `pytest -q`.
+
 ## Test
 
 ```bash
 pytest -q
 ```
 
-73 tests. What each one covers, and the bug they found, is in [TESTING.md](TESTING.md).
+339 tests, plus `scripts/curl_smoke.sh` (139 curl checks against a running server). What they cover, and the 14 bugs they found, is in [TESTING.md](TESTING.md).
 
 ## API
 
-Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.md). The requirements I worked from are in [PRD.md](PRD.md), and my assumptions in [ASSUMPTIONS.md](ASSUMPTIONS.md).
+Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.md). My assumptions are in [ASSUMPTIONS.md](ASSUMPTIONS.md), and what I tested in [TESTING.md](TESTING.md).
 
 ## Design decisions
 
@@ -55,15 +87,20 @@ Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.m
 
 8. **Reusing a `reference_id` with a different type or amount returns 422** (IETF Idempotency-Key draft §2.7). A replay of the same request is harmless (200), but the same reference with different values is almost certainly a client bug and shouldn't silently succeed.
 
+9. **Strict input, on purpose.** Amounts must be plain decimals (no `1e2`, `+10`, `NaN`, spaces, non-ASCII digits), capped at 1 trillion per transaction, with a balance ceiling of 9,999,999,999,999.99. The first version accepted `1e30` and a 400-digit amount; the edge-case probe I wrote showed that one oversized value made every later read of that account return 500. Text fields are trimmed and reject control characters (a NUL byte makes Postgres throw), and `description` is capped at 500 characters to match the column.
+
+10. **Transfer legs are stored as `transfer:<ref>:debit|credit`** and ordinary references may not start with `transfer:`. Before that, a transfer reference and an ordinary one could collide, and reusing a transfer reference with a different destination crashed with a 500; both are covered now.
+
+11. **Every error has the same `{error, message}` body**, including 404/405/400 and unexpected 500s (the 500 body never includes internals). Trailing-slash redirects are off, because a redirected POST can silently lose its body.
+
 ## Known limitations
 
-- **Postgres path is untested** — the concurrency tests run on SQLite only. The `FOR UPDATE` path hasn't been run against a real Postgres.
+- **SQLite stores money as floating point.** That's why the balance ceiling is 15 significant digits: beyond that SQLite can't keep cents exact, while Postgres `NUMERIC` could. Use Postgres for anything real.
 - **SQLite serialises everything**, including reads, because of `BEGIN IMMEDIATE`. Fine for a take-home, not for real load.
-- **Timestamps come back without a timezone** — they're stored as UTC but SQLite drops the tzinfo, so `created_at` has no `Z`. Postgres keeps it.
 - **No auth** — in production I'd add API key or JWT middleware.
 - **Single currency** — no currency field. Would add it as a non-nullable column with a migration.
 - **No Alembic** — using `create_all()` for simplicity. Real project would use migrations.
-- **Transfer idempotency is two-legged** — uses `{ref}:debit` and `{ref}:credit` as sub-references. If only one leg made it (shouldn't happen since they share a commit, but still), a retry would see a partial match. Edge case I'd want to handle more carefully in production.
+- **A transfer is two ledger rows, not its own record.** There's no `transfers` table. Both legs share one commit so a half-transfer can't be stored, but if someone repaired the data by hand and left only one leg, a retry would return a 422 conflict instead of fixing it. A real system would have a transfers table with its own unique key.
 
 ## What I'd add with more time
 

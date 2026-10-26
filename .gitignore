@@ -8,3 +8,14 @@ venv/
 .vscode/
 .idea/
 .DS_Store
+*.log
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# local notes and tooling, not part of the submission
+.claude/
+CLAUDE.md
+AI_DETECTION_RESEARCH.md
+PRD.md

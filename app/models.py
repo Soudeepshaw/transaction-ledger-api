@@ -1,8 +1,5 @@
-"""SQLAlchemy models.
-
-Money stored as Numeric(18,2) — fixed-point, never float — so balance
-arithmetic stays exact across credit/debit cycles.
-"""
+"""SQLAlchemy models."""
+# Money is Numeric(18,2), fixed-point, never float, so balance arithmetic stays exact.
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal

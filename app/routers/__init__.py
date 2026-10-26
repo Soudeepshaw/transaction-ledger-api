@@ -1,5 +1,3 @@
-from decimal import Decimal, InvalidOperation
-
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
@@ -41,7 +39,6 @@ def create_transaction(
     response: Response,
     db: Session = Depends(get_db),
 ):
-    _validate_decimal_places(body.amount)
     txn, dup = crud.add_transaction(
         db,
         account_id=account_id,
@@ -67,7 +64,7 @@ def create_transaction(
 def list_transactions(
     account_id: str,
     type: str | None = Query(None, pattern="^(credit|debit)$"),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=1_000_000),
     limit: int = Query(20, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
@@ -89,7 +86,6 @@ def create_transfer(
     if body.from_account_id == body.to_account_id:
         raise ValidationFailed("Cannot transfer to the same account.")
 
-    _validate_decimal_places(body.amount)
 
     from_acc, to_acc, debit_txn, credit_txn, dup = crud.transfer(
         db,
@@ -111,20 +107,3 @@ def create_transfer(
         resp.debit_transaction.duplicate = True
         resp.credit_transaction.duplicate = True
     return resp
-
-
-# ── helpers ──────────────────────────────────────────────────────────
-
-def _validate_decimal_places(amount: Decimal):
-    """Reject amounts with more than 2 decimal places (e.g. 10.005).
-    Pydantic lets them through, but the DB column is Numeric(18,2)
-    so they'd get silently rounded — better to fail loud."""
-    try:
-        # Decimal('10.00').as_tuple().exponent == -2
-        exp = amount.as_tuple().exponent
-        if isinstance(exp, int) and exp < -2:
-            raise ValidationFailed(
-                f"Amount must have at most 2 decimal places, got {amount}."
-            )
-    except InvalidOperation:
-        raise ValidationFailed("Invalid amount.")
