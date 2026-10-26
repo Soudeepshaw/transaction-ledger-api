@@ -18,7 +18,7 @@ Unknown routes return 404 `not_found` and wrong methods (e.g. DELETE on a transa
 | 409 | `reference_conflict` | `reference_id` already used on this account with a different type/amount |
 | 422 | `insufficient_balance` | debit or transfer larger than the balance |
 | 422 | `validation_error` | e.g. transfer to the same account |
-| 422 | `invalid_pagination` | `page` < 1 or `limit` outside 1-200 |
+| 422 | `validation_error` | bad body or query, e.g. missing field, amount <= 0, `type=refund`, `page` < 1, `limit` outside 1-200 |
 
 ## POST /accounts
 
