@@ -207,9 +207,10 @@ def test_amount_rejects_3_decimal_places():
     assert resp.status_code == 422
 
 
-def test_reusing_ref_with_different_amount_409():
+def test_reusing_ref_with_different_amount_422():
     aid = _make_account()
     _credit(aid, 50, "same-ref")
     resp = _credit(aid, 75, "same-ref")
-    assert resp.status_code == 409
+    assert resp.status_code == 422
+    assert resp.json()["error"] == "reference_conflict"
     assert client.get(f"/api/v1/accounts/{aid}/balance").json()["balance"] == "50.00"

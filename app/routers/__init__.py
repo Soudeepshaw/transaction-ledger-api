@@ -52,6 +52,7 @@ def create_transaction(
     )
     if dup:
         response.status_code = 200  # replay: nothing new was created
+        response.headers["Idempotent-Replayed"] = "true"
     out = schemas.TransactionOut.model_validate(txn)
     out.duplicate = dup
     if dup:
@@ -106,6 +107,7 @@ def create_transfer(
     )
     if dup:
         response.status_code = 200
+        response.headers["Idempotent-Replayed"] = "true"
         resp.debit_transaction.duplicate = True
         resp.credit_transaction.duplicate = True
     return resp

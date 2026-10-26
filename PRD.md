@@ -64,12 +64,12 @@ Fields: `id`, `account_id`, `type` (credit|debit), `amount`, `description`, `ref
 | 7.3 | Type is credit or debit | test_invalid_type_422 |
 | 7.4 | Amount greater than 0 | test_bad_amount_422 (0, -5, abc, empty) |
 | 7.5 | `reference_id` provided | test_missing_reference_id_422 |
-| 7.6 | Duplicate `reference_id` handled correctly | see 2.5 and test_same_reference_id_different_amount_409_and_balance_unchanged |
+| 7.6 | Duplicate `reference_id` handled correctly | see 2.5 and test_same_reference_id_different_amount_422_and_balance_unchanged |
 | 7.7 | Debit needs sufficient balance | see 2.3 |
 | 7.8 | Invalid account ID gives an error; invalid request data gives a validation error | 404 / 422 tests above |
 
 ## 8. Error handling
-Examples the brief lists: account not found (404), invalid type (422), invalid amount (422), insufficient balance (422), duplicate transaction (200 replay / 409 conflict), invalid pagination (422), invalid request body (422).
+Examples the brief lists: account not found (404), invalid type (422), invalid amount (422), insufficient balance (422), duplicate transaction (200 replay with `Idempotent-Replayed` header / 422 if the payload differs), invalid pagination (422), invalid request body (422).
 
 "Error responses should be consistent": every error has `{"error": <code>, "message": <text>}`, including request-validation errors (plus a `details` list), unknown routes (404) and wrong methods (405).
 Verified by test_every_error_kind_uses_the_same_body_shape and test_validation_error_names_the_bad_field.
@@ -102,14 +102,14 @@ Verified by test_every_error_kind_uses_the_same_body_shape and test_validation_e
 ## My additions (not in the brief)
 - Money is `Decimal` / `Numeric(18,2)`, never float, at most 2 decimal places.
 - Concurrency: row lock on Postgres, `BEGIN IMMEDIATE` on SQLite; the unique constraint settles duplicate races.
-- Same `reference_id` with a different type/amount returns 409.
+- Same `reference_id` with a different type/amount returns 422 (IETF Idempotency-Key draft §2.7); replays carry `Idempotent-Replayed: true` (Stripe).
 
 ## Status codes
 | Case | Code |
 |---|---|
 | Account / transaction created | 201 |
 | Duplicate `reference_id`, same payload | 200 + `duplicate: true` |
-| Same `reference_id`, different type/amount | 409 |
+| Same `reference_id`, different type/amount | 422 `reference_conflict` |
 | Unknown account / route | 404 |
 | Wrong method (e.g. DELETE a transaction) | 405 |
 | Insufficient balance, invalid data, bad pagination, same-account transfer | 422 |

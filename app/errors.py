@@ -21,7 +21,7 @@ class InsufficientBalance(LedgerError):
 
 
 class ReferenceConflict(LedgerError):
-    status_code = 409
+    status_code = 422  # IETF Idempotency-Key draft §2.7: same key, different payload
     error_code = "reference_conflict"
 
 

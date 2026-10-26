@@ -168,7 +168,9 @@ def test_duplicate_debit_does_not_debit_twice():
 def test_duplicate_response_says_the_transaction_already_exists():
     aid = acct()
     first = txn(aid, "credit", 10, "r").json()
-    again = txn(aid, "credit", 10, "r").json()
+    replay = txn(aid, "credit", 10, "r")
+    assert replay.headers["Idempotent-Replayed"] == "true"
+    again = replay.json()
     assert first["message"] is None
     assert "already exists" in again["message"]
     assert again["duplicate"] is True
@@ -190,17 +192,17 @@ def test_same_reference_id_allowed_on_different_accounts():
     assert bal(a) == bal(b) == "10.00"
 
 
-def test_same_reference_id_different_amount_409_and_balance_unchanged():
+def test_same_reference_id_different_amount_422_and_balance_unchanged():
     aid = acct()
     txn(aid, "credit", 50, "r")
-    assert txn(aid, "credit", 75, "r").status_code == 409
+    assert txn(aid, "credit", 75, "r").status_code == 422
     assert bal(aid) == "50.00"
 
 
-def test_same_reference_id_different_type_409():
+def test_same_reference_id_different_type_422():
     aid = acct()
     txn(aid, "credit", 50, "r")
-    assert txn(aid, "debit", 50, "r").status_code == 409
+    assert txn(aid, "debit", 50, "r").status_code == 422
 
 
 def test_error_body_shape():
@@ -334,6 +336,15 @@ def test_transfer_retry_after_draining_returns_original_not_422():
     assert again.status_code == 200
     assert again.json()["debit_transaction"]["duplicate"] is True
     assert (bal(a), bal(b)) == ("0.00", "100.00")
+
+
+def test_transfer_reusing_reference_with_different_amount_422():
+    a, b = acct(), acct()
+    txn(a, "credit", 100, "seed")
+    transfer(a, b, 30, "x")
+    r = transfer(a, b, 50, "x")
+    assert r.status_code == 422 and r.json()["error"] == "reference_conflict"
+    assert (bal(a), bal(b)) == ("70.00", "30.00")
 
 
 def test_transfer_records_both_legs_in_history():
@@ -487,7 +498,7 @@ def test_every_error_kind_uses_the_same_body_shape():
         (client.get(f"{API}/nothing-here"), 404, "not_found"),
         (client.delete(f"{API}/accounts/{aid}"), 405, "method_not_allowed"),
         (txn(aid, "debit", 999, "big"), 422, "insufficient_balance"),
-        (txn(aid, "credit", 99, "r"), 409, "reference_conflict"),
+        (txn(aid, "credit", 99, "r"), 422, "reference_conflict"),
         (txn(aid, "credit", -1, "neg"), 422, "validation_error"),
         (txn(aid, "weird", 1, "t"), 422, "validation_error"),
         (client.post(f"{API}/accounts", json={}), 422, "validation_error"),

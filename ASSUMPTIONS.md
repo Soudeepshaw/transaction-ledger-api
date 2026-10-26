@@ -4,7 +4,7 @@
 
 2. **Duplicate reference_id with same amount** returns 200 with the original transaction and a `duplicate: true` flag. Balance is not touched. I went with Stripe's pattern here because the client doesn't need to branch on error codes — it just gets back the expected data.
 
-3. **Duplicate reference_id with different amount** — honestly, this is a client bug. Strictly the right response is 409 or 422 saying "reference_id reused with different payload." Implemented: it returns 409 `reference_conflict`.
+3. **Duplicate reference_id with different amount** — honestly, this is a client bug. It returns 422 `reference_conflict`, which is what the IETF Idempotency-Key draft (§2.7) recommends for a reused key with a different payload. 409 there is reserved for a request that is still being processed.
 
 4. **Single currency (INR implied).** No currency column. If I needed multi-currency, I'd add a non-nullable `currency` field on both Account and Transaction, and reject transfers across different currencies.
 

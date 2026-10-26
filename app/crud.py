@@ -160,6 +160,10 @@ def transfer(
     existing_debit = _find_existing_txn(db, from_account_id, debit_ref)
     existing_credit = _find_existing_txn(db, to_account_id, credit_ref)
     if existing_debit is not None and existing_credit is not None:
+        if existing_debit.amount != amount:
+            raise ReferenceConflict(
+                f"reference_id '{reference_id}' was already used for a transfer of {existing_debit.amount}."
+            )
         return from_acct, to_acct, existing_debit, existing_credit, True
 
     if from_acct.balance < amount:

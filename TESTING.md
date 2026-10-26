@@ -1,7 +1,7 @@
 # Testing
 
 ```bash
-pytest -q          # 72 tests, ~5s, in-memory SQLite (concurrency tests use a temp file DB)
+pytest -q          # 73 tests, ~5s, in-memory SQLite (concurrency tests use a temp file DB)
 ```
 
 Tests live in `tests/test_api.py` (the main flows) and `tests/test_scenarios.py` (edge cases, grouped by PRD section).
@@ -26,7 +26,7 @@ Tests live in `tests/test_api.py` (the main flows) and `tests/test_scenarios.py`
 | FR-2 | duplicate `reference_id` (credit and debit) | 200, `duplicate: true`, original returned, balance changes once, one row |
 | FR-2 | duplicate with different description | still a replay, original description kept |
 | FR-2 | same `reference_id` on a different account | allowed, 201 |
-| FR-2 | same `reference_id`, different amount or type | 409, balance unchanged |
+| FR-2 | same `reference_id`, different amount or type | 422 `reference_conflict`, balance unchanged |
 | FR-3 | balance of existing / unknown account | `{account_id, balance}` / 404 |
 | FR-4 | no filter returns both types; filter by credit / debit | correct subsets |
 | FR-4 | latest first; pages don't overlap and together cover everything | verified |
@@ -37,11 +37,12 @@ Tests live in `tests/test_api.py` (the main flows) and `tests/test_scenarios.py`
 | Integrity | no PUT / PATCH / DELETE on transactions or accounts | 405, nothing changed |
 | Integrity | brief's example 0 +100 +50 -30 -20 | 100.00 |
 | Integrity | balance vs sum of the ledger after rejected and duplicate requests | equal |
-| Errors | 404 (account, route), 405, 409, 422 (domain and validation), malformed JSON | all use `{error, message}` |
+| Errors | 404 (account, route), 405, 422 (domain and validation), malformed JSON | all use `{error, message}` |
 | Errors | validation error names the bad field | `details[0].field == "name"` |
 | DB constraints | negative balance, zero amount, bad type, duplicate reference inserted directly | rejected by the database itself |
 | Transfer | success, exact balance, unknown account, same account | 201 / 201 / 404 / 422 |
 | Transfer | insufficient funds | 422, both balances and both ledgers untouched |
+| Transfer | same `reference_id`, different amount | 422, nothing moved |
 | Transfer | retry after the source was drained | 200 with the original result, not 422 |
 | Transfer | `commit()` fails mid-transfer | both balances unchanged (atomic) |
 | Concurrency | 20 threads post the same `reference_id` | exactly 1 transaction, credited once |
@@ -58,6 +59,5 @@ The same test also caught that a retried transfer returned 201 instead of 200, w
 ## Not covered
 
 - **Postgres.** The row-lock path (`FOR UPDATE`) has never been run against a real Postgres. Only the SQLite path is tested.
-- **Transfer with a reused `reference_id` but a different amount.** Plain transactions return 409, transfers currently treat it as a replay.
 - **Load / performance.** Nothing measures throughput or deep-page speed.
 - **Timezones.** SQLite drops tzinfo, so `created_at` has no `Z` in test output.

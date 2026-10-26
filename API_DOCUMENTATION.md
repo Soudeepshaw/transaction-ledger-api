@@ -15,7 +15,7 @@ Unknown routes return 404 `not_found` and wrong methods (e.g. DELETE on a transa
 | 404 | `account_not_found` | account id doesn't exist |
 | 404 | `not_found` | unknown route |
 | 405 | `method_not_allowed` | e.g. PUT/DELETE on a transaction |
-| 409 | `reference_conflict` | `reference_id` already used on this account with a different type/amount |
+| 422 | `reference_conflict` | `reference_id` already used on this account with a different type/amount (or a transfer with a different amount) |
 | 422 | `insufficient_balance` | debit or transfer larger than the balance |
 | 422 | `validation_error` | e.g. transfer to the same account |
 | 422 | `validation_error` | bad body or query, e.g. missing field, amount <= 0, `type=refund`, `page` < 1, `limit` outside 1-200 |
@@ -66,14 +66,14 @@ curl -X POST http://127.0.0.1:8000/api/v1/accounts/$ID/transactions \
 {"id":"c0b5aee7-f068-462d-91b0-74183f8f3446","account_id":"95d3def2-...","type":"credit","amount":"100.00","description":"salary","reference_id":"r1","created_at":"2026-10-26T16:44:40.981408","duplicate":false}
 ```
 
-Sending the same request again returns **`200`** with the original transaction, `"duplicate": true` and a `message` saying it already exists (`"Transaction already exists for this reference_id; nothing was changed."`). No new row is created and the balance doesn't change.
+Sending the same request again returns **`200`** with the `Idempotent-Replayed: true` header and the original transaction, `"duplicate": true` and a `message` saying it already exists (`"Transaction already exists for this reference_id; nothing was changed."`). No new row is created and the balance doesn't change.
 
 Debit larger than the balance: `422`, balance unchanged.
 ```json
 {"error":"insufficient_balance","message":"Account '95d3def2-...' balance 100.00, cannot debit 150."}
 ```
 
-Same `reference_id` with a different type or amount: `409`.
+Same `reference_id` with a different type or amount: `422` (IETF Idempotency-Key draft §2.7).
 ```json
 {"error":"reference_conflict","message":"reference_id 'r1' was already used with a different type/amount."}
 ```

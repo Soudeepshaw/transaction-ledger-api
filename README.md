@@ -31,7 +31,7 @@ Open http://127.0.0.1:8000/docs for the interactive API.
 pytest -q
 ```
 
-72 tests. What each one covers, and the bug they found, is in [TESTING.md](TESTING.md).
+73 tests. What each one covers, and the bug they found, is in [TESTING.md](TESTING.md).
 
 ## API
 
@@ -39,7 +39,7 @@ Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.m
 
 ## Design decisions
 
-1. **Idempotency via reference_id** — I went with Stripe's approach: duplicate POST returns 200 + the original transaction with a `duplicate: true` flag instead of 409. The client doesn't need special error handling, it just gets back what it expects. The DB unique constraint `(account_id, reference_id)` is the real guardrail; the SELECT before INSERT is just a fast path.
+1. **Idempotency via reference_id** — I went with Stripe's approach: duplicate POST returns 200 + the original transaction with a `duplicate: true` flag, an "already exists" message and an `Idempotent-Replayed: true` header, instead of an error. That's what the IETF Idempotency-Key draft (§2.6) and Stripe do for retries. The client doesn't need special error handling, it just gets back what it expects. The DB unique constraint `(account_id, reference_id)` is the real guardrail; the SELECT before INSERT is just a fast path.
 
 2. **Balance column vs SUM(ledger)** — storing balance directly is O(1) per read instead of scanning the whole ledger. The tradeoff is that the balance and the ledger can drift if writes aren't atomic. I keep them in sync by updating both in a single `db.commit()`.
 
@@ -53,7 +53,7 @@ Full request/response examples are in [API_DOCUMENTATION.md](API_DOCUMENTATION.m
 
 7. **Offset pagination** — simple and good enough for this scope. I'd switch to cursor/keyset (`WHERE created_at < :cursor ORDER BY created_at DESC, id`) for production since offset gets slow on deep pages.
 
-8. **Reusing a `reference_id` with a different type or amount returns 409.** A replay of the same request is harmless (200), but the same reference with different values is almost certainly a client bug and shouldn't silently succeed.
+8. **Reusing a `reference_id` with a different type or amount returns 422** (IETF Idempotency-Key draft §2.7). A replay of the same request is harmless (200), but the same reference with different values is almost certainly a client bug and shouldn't silently succeed.
 
 ## Known limitations
 
