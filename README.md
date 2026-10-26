@@ -35,7 +35,7 @@ The image is a two-stage build on `python:3.15-slim`: dependencies are installed
 
 ```bash
 # API + Postgres 18 (data kept in a named volume)
-docker compose up --build
+POSTGRES_PASSWORD=choose-one docker compose up --build        # PowerShell: $env:POSTGRES_PASSWORD = "choose-one"
 # -> http://127.0.0.1:8000/docs
 
 # or just the API on SQLite, with the database file kept in a volume
@@ -43,7 +43,7 @@ docker build -t ledger-api .
 docker run -p 8000:8000 -v ledger-data:/data ledger-api
 ```
 
-Podman runs the same files (`podman compose up --build`). Set `POSTGRES_PASSWORD` (environment or `.env`) to choose the database password; without it a local-only default is used.
+Podman runs the same files (`podman compose up --build`). `compose.yaml` stores no password: set `POSTGRES_PASSWORD` (environment variable or a `.env` file, see `.env.example`) before running it, and compose refuses to start without it.
 
 ## Run on Postgres
 

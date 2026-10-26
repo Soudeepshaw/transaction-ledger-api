@@ -1,12 +1,12 @@
 # Local stack: the API on Postgres.  docker compose up --build
-# The database password comes from POSTGRES_PASSWORD (environment or a .env file next to
-# this file); the fallback 'ledger' is only for a throwaway local database.
+# POSTGRES_PASSWORD is required and is read from the environment or a .env file next to this file.
+# There is no default, so no password is stored in this repository.
 services:
   db:
     image: postgres:18.6-alpine
     environment:
       POSTGRES_USER: ledger
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD, see .env.example}
       POSTGRES_DB: ledger
     volumes:
       - pgdata:/var/lib/postgresql   # Postgres 18 images keep data under this path
@@ -20,7 +20,7 @@ services:
   api:
     build: .
     environment:
-      DATABASE_URL: postgresql://ledger:${POSTGRES_PASSWORD:-ledger}@db:5432/ledger
+      DATABASE_URL: postgresql://ledger:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD, see .env.example}@db:5432/ledger
     ports:
       - "8000:8000"
     depends_on:
