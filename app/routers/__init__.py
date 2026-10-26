@@ -54,6 +54,8 @@ def create_transaction(
         response.status_code = 200  # replay: nothing new was created
     out = schemas.TransactionOut.model_validate(txn)
     out.duplicate = dup
+    if dup:
+        out.message = "Transaction already exists for this reference_id; nothing was changed."
     return out
 
 

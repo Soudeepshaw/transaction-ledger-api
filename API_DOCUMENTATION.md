@@ -66,7 +66,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/accounts/$ID/transactions \
 {"id":"c0b5aee7-f068-462d-91b0-74183f8f3446","account_id":"95d3def2-...","type":"credit","amount":"100.00","description":"salary","reference_id":"r1","created_at":"2026-10-26T16:44:40.981408","duplicate":false}
 ```
 
-Sending the same request again returns **`200`** with the original transaction and `"duplicate": true`. No new row is created and the balance doesn't change.
+Sending the same request again returns **`200`** with the original transaction, `"duplicate": true` and a `message` saying it already exists (`"Transaction already exists for this reference_id; nothing was changed."`). No new row is created and the balance doesn't change.
 
 Debit larger than the balance: `422`, balance unchanged.
 ```json

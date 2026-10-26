@@ -1,7 +1,7 @@
 # Testing
 
 ```bash
-pytest -q          # 71 tests, ~5s, in-memory SQLite (concurrency tests use a temp file DB)
+pytest -q          # 72 tests, ~5s, in-memory SQLite (concurrency tests use a temp file DB)
 ```
 
 Tests live in `tests/test_api.py` (the main flows) and `tests/test_scenarios.py` (edge cases, grouped by PRD section).

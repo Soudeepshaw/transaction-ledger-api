@@ -165,6 +165,15 @@ def test_duplicate_debit_does_not_debit_twice():
     assert count_txns(aid) == 2
 
 
+def test_duplicate_response_says_the_transaction_already_exists():
+    aid = acct()
+    first = txn(aid, "credit", 10, "r").json()
+    again = txn(aid, "credit", 10, "r").json()
+    assert first["message"] is None
+    assert "already exists" in again["message"]
+    assert again["duplicate"] is True
+
+
 def test_duplicate_with_different_description_still_a_replay():
     aid = acct()
     a = txn(aid, "credit", 10, "r", description="one")
@@ -452,7 +461,8 @@ def test_transactions_cannot_be_edited_or_deleted(method):
         assert r.status_code in (404, 405)
     assert bal(aid) == "10.00"
     stored = client.get(f"{API}/accounts/{aid}/transactions").json()["data"][0]
-    assert stored["amount"] == "10.00" and stored["id"] == t["id"]
+    for field in ("id", "account_id", "type", "amount", "description", "reference_id", "created_at"):
+        assert stored[field] == t[field], field
 
 
 def test_accounts_cannot_be_overwritten_or_deleted_via_api():

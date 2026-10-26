@@ -35,6 +35,7 @@ class TransactionOut(BaseModel):
     reference_id: str
     created_at: datetime
     duplicate: bool = False  # true when this reference_id already existed
+    message: Optional[str] = None  # set on a replay: says the transaction already exists
 
 
 class BalanceOut(BaseModel):

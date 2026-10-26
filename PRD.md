@@ -31,7 +31,7 @@ Fields: `id`, `account_id`, `type` (credit|debit), `amount`, `description`, `ref
 | 2.2 | Debit decreases balance by amount (100 - 30 = 70) | test_debit_decreases_balance |
 | 2.3 | Debit larger than balance is rejected, balance unchanged (100 - 150: rejected, still 100) | test_debit_more_than_balance_422, test_rejected_debit_creates_no_transaction_row |
 | 2.4 | `reference_id` unique per account | unique constraint (account_id, reference_id) |
-| 2.5 | Same `reference_id` again on the same account: no new transaction, no balance change, response says it already exists | test_duplicate_ref_returns_original_txn, test_duplicate_debit_does_not_debit_twice |
+| 2.5 | Same `reference_id` again on the same account: no new transaction, no balance change, response says it already exists (200, `duplicate: true`, `message`) | test_duplicate_ref_returns_original_txn, test_duplicate_debit_does_not_debit_twice, test_duplicate_response_says_the_transaction_already_exists |
 | 2.6 | Same `reference_id` allowed on different accounts | test_same_reference_id_allowed_on_different_accounts |
 
 ## 3. Get account balance
